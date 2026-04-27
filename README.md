@@ -1,37 +1,32 @@
-# FiveHoleOps NHL Dashboard
+# FiveHoleOps NHL Dashboard 🏒
 
-A terminal-based NHL scoreboard and news aggregator for Fedora.
+A dynamic, terminal-based NHL dashboard built for sysadmins. Features real-time score tracking, team-specific news feeds, and a fully automated playoff engine.
 
-## Features
-- Live Scoreboard updates.
-- Detroit Red Wings specialized tracker.
-- Dynamic Playoff Bracket tracking.
-- News aggregator from Pro Hockey News.
+## 🚀 Features
+- **Dynamic Playoffs:** Automated bracket tracking that updates as series progress.
+- **Visual Cues:**
+    - Color-coded Conference markers (**Red E** / **Blue W**).
+    - **Gold** highlighting for Series Winners.
+    - **Strike-through** and dimming for eliminated teams.
+- **Smart Logic:** Automatically transitions from Round 1 to the Stanley Cup Finals without manual code changes.
+- **SysAdmin Friendly:** Lightweight Bash script with ANSI color formatting for high readability.
 
-## Installation
+## 🛠 Setup & Usage
+1. **Source the script** in your \`~/.bashrc\` to make functions available globally:
+   \`\`\`bash
+   echo "source ~/scripts/nhl-dashboard/nhl_dashboard.sh" >> ~/.bashrc
+   \`\`\`
 
-### 1. Prerequisites
-sudo dnf install curl jq
+2. **Commands:**
+    * \`playoffs\`: View the current Stanley Cup Playoff bracket and series standings.
+    * \`wings\`: Check the Detroit Red Wings schedule, season progress, and latest news.
+    * \`scores\`: View yesterday's finals and today's live scoreboard.
+    * \`nhlnews\`: Pull the latest headlines from across the league.
 
-### 2. Setup
-git clone [https://github.com/FiveHoleOps/nhl-dashboard.git](https://github.com/FiveHoleOps/nhl-dashboard.git)
-cd nhl-dashboard
-chmod +x nhl_dashboard.sh
-
-## Usage
-
-| Command | Description |
-| :--- | :--- |
-| ./nhl_dashboard.sh | Show finals, today's scores, and tomorrow's schedule. |
-| ./nhl_dashboard.sh wings | Show Red Wings schedule and news. |
-| ./nhl_dashboard.sh bracket | Show the "If the playoffs started today" bracket. |
-| ./nhl_dashboard.sh news | Show the latest NHL headlines. |
-
-## Integration
-
-Add these to your ~/.bashrc:
-alias wings='~/scripts/nhl-dashboard/nhl_dashboard.sh wings'
-alias scores='~/scripts/nhl-dashboard/nhl_dashboard.sh'
+## 📋 Requirements
+* \`curl\`: For API data fetching.
+* \`jq\`: For JSON parsing.
+* \`bash\`: Optimized for Fedora/Ubuntu environments.
 
 ---
-*Maintained by FiveHoleOps*
+*Maintained by Benjamin Scott Morrow | FiveHoleOps*
