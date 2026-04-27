@@ -215,45 +215,81 @@ bracket() {
 playoffs() {
     # --- SETUP ---
     GOLD="\e[38;5;214m"; BLUE="\e[38;5;33m"; RED="\e[31m"; BOLD="\e[1m"; RESET="\e[0m"; WHITE="\e[97m"; DIM="\e[2m"
+    local CURRENT_YEAR=$(date +%Y)
+    local RAW_DATA=$(curl -s -L -H "User-Agent: Mozilla" "https://api-web.nhle.com/v1/playoff-bracket/${CURRENT_YEAR}")
     
-    # Using the live scores endpoint to get real-time series data
-    DATA=$(curl -s -L -H "User-Agent: Mozilla" "https://api-web.nhle.com/v1/score/now")
+    if ! echo "$RAW_DATA" | jq . >/dev/null 2>&1; then
+        echo -e "${RED}Error: Could not parse bracket data.${RESET}"
+        return
+    fi
 
-    echo -e "${GOLD}${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
-    echo -e "${GOLD}${BOLD}┃                   2026 STANLEY CUP PLAYOFF STANDINGS                 ┃${RESET}"
-    echo -e "${GOLD}${BOLD}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
+    echo -e "${GOLD}${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
+    echo -e "${GOLD}${BOLD}┃                            ${CURRENT_YEAR} STANLEY CUP PLAYOFF STANDINGS                            ┃${RESET}"
+    echo -e "${GOLD}${BOLD}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
 
-    # Helper for formatting entries
-    # Usage: row "CONFERENCE" "TEAM A" "TEAM B" "RECORD" "LAST_SCORE" "NEXT_GAME"
-    row() {
-        local conf=$1; local t1=$2; local t2=$3; local rec=$4; local last=$5; local next=$6
-        local s1=$(nhl_team_style "$t1"); local s2=$(nhl_team_style "$t2")
+    for ROUND in {1..4}; do
+        local CHECK=$(echo "$RAW_DATA" | jq -r ".series[] | select(.playoffRound == $ROUND and (.topSeedTeam.abbrev != null or .bottomSeedTeam.abbrev != null)) | .seriesLetter" | head -n 1)
         
-        # Strike-through logic for eliminated teams
-        local l1=$(echo "$rec" | cut -d'-' -f1); local l2=$(echo "$rec" | cut -d'-' -f2)
-        [[ "$l1" -eq 4 ]] && s2="${DIM}\e[9m"
-        [[ "$l2" -eq 4 ]] && s1="${DIM}\e[9m"
+        if [[ -n "$CHECK" ]]; then
+            case $ROUND in
+                1) echo -e "  ${BOLD}ROUND 1${RESET}" ;;
+                2) echo -e "\n  ${BOLD}ROUND 2${RESET}" ;;
+                3) echo -e "\n  ${BOLD}CONFERENCE FINALS${RESET}" ;;
+                4) echo -e "\n  ${BOLD}STANLEY CUP FINALS${RESET}" ;;
+            esac
+            echo -e "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-        printf " ${BOLD}%-4s${RESET} | %b%-3s${RESET} vs %b%-3s${RESET} [%-5s] | Last: %-12s | Next: %s\n" \
-            "$conf" "$s1" "$t1" "$s2" "$t2" "$rec" "$last" "$next"
-    }
+            echo "$RAW_DATA" | jq -c ".series[] | select(.playoffRound == $ROUND)" | while read -r series; do
+                TOP=$(echo "$series" | jq -r '.topSeedTeam.abbrev // "TBD"')
+                BOT=$(echo "$series" | jq -r '.bottomSeedTeam.abbrev // "TBD"')
+                
+                if [[ "$TOP" != "TBD" || "$BOT" != "TBD" ]]; then
+                    TWINS=$(echo "$series" | jq -r '.topSeedWins // 0')
+                    BWINS=$(echo "$series" | jq -r '.bottomSeedWins // 0')
+                    
+                    # --- DYNAMIC CONFERENCE MARKER ---
+                    # East: BUF, BOS, TBL, MTL, CAR, OTT, PIT, PHI, NYR, NYI, NJD, WSH, FLA, DET, TOR, CBJ
+                    # West: COL, LAK, DAL, MIN, VGK, UTA, EDM, ANA, VAN, WPG, NSH, STL, CAL, SEA, SJS, CHI
+                    CONF_MARKER="   "
+                    if [[ "$ROUND" -le 3 ]]; then
+                        case "$TOP" in
+                            BUF|BOS|TBL|MTL|CAR|OTT|PIT|PHI|NYR|NYI|NJD|WSH|FLA|DET|TOR|CBJ) CONF_MARKER="${RED}E${RESET}  " ;;
+                            COL|LAK|DAL|MIN|VGK|UTA|EDM|ANA|VAN|WPG|NSH|STL|CGY|SEA|SJS|CHI) CONF_MARKER="${BLUE}W${RESET}  " ;;
+                        esac
+                    fi
 
-    # --- EASTERN CONFERENCE ---
-    echo -e "${BLUE}${BOLD} EASTERN CONFERENCE${RESET}"
-    row "ATL" "BUF" "BOS" "3-1" "BUF 6-1" "Tue 7:30P"
-    row "ATL" "TBL" "MTL" "2-2" "TBL 3-2" "Wed TBD"
-    row "MET" "CAR" "OTT" "4-0" "CAR 4-2" "ADVANCED"
-    row "MET" "PHI" "PIT" "3-1" "PIT 4-2" "Mon 7:00P"
+                    # --- STATUS LOGIC ---
+                    LAST=$(echo "$series" | jq -r '.lastGameResult // empty')
+                    NEXT="In Progress"
+                    
+                    if [[ "$TWINS" -eq 4 ]]; then 
+                        LAST_TXT="${TOP} Series Winner"; NEXT="ADVANCED"; S_BOT="${DIM}\e[9m"; S_TOP=$(nhl_team_style "$TOP")
+                    elif [[ "$BWINS" -eq 4 ]]; then 
+                        LAST_TXT="${BOT} Series Winner"; NEXT="ADVANCED"; S_TOP="${DIM}\e[9m"; S_BOT=$(nhl_team_style "$BOT")
+                    else
+                        S_TOP=$(nhl_team_style "$TOP"); S_BOT=$(nhl_team_style "$BOT")
+                        if [[ -z "$LAST" ]]; then
+                            [ "$TWINS" -gt "$BWINS" ] && LAST_TXT="$TOP leads $TWINS-$BWINS" || LAST_TXT="$BOT leads $BWINS-$TWINS"
+                            [ "$TWINS" -eq "$BWINS" ] && LAST_TXT="Series Tied $TWINS-$BWINS"
+                        else
+                            LAST_TXT="$LAST"
+                        fi
+                    fi
 
-    echo -e " ────────────────────────────────────────────────────────────────────"
-
-    # --- WESTERN CONFERENCE ---
-    echo -e "${RED}${BOLD} WESTERN CONFERENCE${RESET}"
-    row "CEN" "COL" "LAK" "4-0" "COL 5-1" "ADVANCED"
-    row "CEN" "DAL" "MIN" "2-2" "MIN 3-2" "Tue 8:00P"
-    row "PAC" "UTA" "VGK" "2-1" "UTA 4-2" "Mon 9:30P"
-    row "PAC" "ANA" "EDM" "3-1" "ANA 4-3" "Tue 10:00P"
-
+                    # --- PRINTING WITH FIXED PADDING ---
+                    # We print the color codes outside the %-s to keep alignment perfect
+                    printf "  %b| %b%-3s${RESET} (%d) vs %b%-3s${RESET} (%d) | " "$CONF_MARKER" "$S_TOP" "$TOP" "$TWINS" "$S_BOT" "$BOT" "$BWINS"
+                    
+                    # Handle the color for "Series Winner" separately to not break printf width
+                    if [[ "$NEXT" == "ADVANCED" ]]; then
+                        printf "${GOLD}%-28s${RESET} | %s\n" "$LAST_TXT" "$NEXT"
+                    else
+                        printf "%-28s | %s\n" "$LAST_TXT" "$NEXT"
+                    fi
+                fi
+            done
+        fi
+    done
     echo ""
 }
 
