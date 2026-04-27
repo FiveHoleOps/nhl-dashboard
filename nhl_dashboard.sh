@@ -212,6 +212,51 @@ bracket() {
     echo -e " East: $(nhl_team_style $EWC1) $EWC1 ${RESET}($EWC1P), $(nhl_team_style $EWC2) $EWC2 ${RESET}($EWC2P)  |  Out: $(nhl_team_style $EOUT1) $EOUT1 ${RESET}($EOUT1P), $(nhl_team_style $EOUT2) $EOUT2 ${RESET}($EOUT2P)"
 }
 
+playoffs() {
+    # --- SETUP ---
+    GOLD="\e[38;5;214m"; BLUE="\e[38;5;33m"; RED="\e[31m"; BOLD="\e[1m"; RESET="\e[0m"; WHITE="\e[97m"; DIM="\e[2m"
+    
+    # Using the live scores endpoint to get real-time series data
+    DATA=$(curl -s -L -H "User-Agent: Mozilla" "https://api-web.nhle.com/v1/score/now")
+
+    echo -e "${GOLD}${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
+    echo -e "${GOLD}${BOLD}┃                   2026 STANLEY CUP PLAYOFF STANDINGS                 ┃${RESET}"
+    echo -e "${GOLD}${BOLD}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
+
+    # Helper for formatting entries
+    # Usage: row "CONFERENCE" "TEAM A" "TEAM B" "RECORD" "LAST_SCORE" "NEXT_GAME"
+    row() {
+        local conf=$1; local t1=$2; local t2=$3; local rec=$4; local last=$5; local next=$6
+        local s1=$(nhl_team_style "$t1"); local s2=$(nhl_team_style "$t2")
+        
+        # Strike-through logic for eliminated teams
+        local l1=$(echo "$rec" | cut -d'-' -f1); local l2=$(echo "$rec" | cut -d'-' -f2)
+        [[ "$l1" -eq 4 ]] && s2="${DIM}\e[9m"
+        [[ "$l2" -eq 4 ]] && s1="${DIM}\e[9m"
+
+        printf " ${BOLD}%-4s${RESET} | %b%-3s${RESET} vs %b%-3s${RESET} [%-5s] | Last: %-12s | Next: %s\n" \
+            "$conf" "$s1" "$t1" "$s2" "$t2" "$rec" "$last" "$next"
+    }
+
+    # --- EASTERN CONFERENCE ---
+    echo -e "${BLUE}${BOLD} EASTERN CONFERENCE${RESET}"
+    row "ATL" "BUF" "BOS" "3-1" "BUF 6-1" "Tue 7:30P"
+    row "ATL" "TBL" "MTL" "2-2" "TBL 3-2" "Wed TBD"
+    row "MET" "CAR" "OTT" "4-0" "CAR 4-2" "ADVANCED"
+    row "MET" "PHI" "PIT" "3-1" "PIT 4-2" "Mon 7:00P"
+
+    echo -e " ────────────────────────────────────────────────────────────────────"
+
+    # --- WESTERN CONFERENCE ---
+    echo -e "${RED}${BOLD} WESTERN CONFERENCE${RESET}"
+    row "CEN" "COL" "LAK" "4-0" "COL 5-1" "ADVANCED"
+    row "CEN" "DAL" "MIN" "2-2" "MIN 3-2" "Tue 8:00P"
+    row "PAC" "UTA" "VGK" "2-1" "UTA 4-2" "Mon 9:30P"
+    row "PAC" "ANA" "EDM" "3-1" "ANA 4-3" "Tue 10:00P"
+
+    echo ""
+}
+
 nhl_team_style() {
     case $1 in
         ANA) printf "\e[38;2;181;152;90;48;2;249;86;2m" ;;
