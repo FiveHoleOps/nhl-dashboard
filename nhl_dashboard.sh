@@ -224,7 +224,7 @@ playoffs() {
     fi
 
     echo -e "${GOLD}${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
-    echo -e "${GOLD}${BOLD}┃                            ${CURRENT_YEAR} STANLEY CUP PLAYOFF STANDINGS                            ┃${RESET}"
+    echo -e "${GOLD}${BOLD}┃                            ${CURRENT_YEAR} STANLEY CUP PLAYOFF STANDINGS                           ┃${RESET}"
     echo -e "${GOLD}${BOLD}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
 
     for ROUND in {1..4}; do
@@ -248,8 +248,6 @@ playoffs() {
                     BWINS=$(echo "$series" | jq -r '.bottomSeedWins // 0')
                     
                     # --- DYNAMIC CONFERENCE MARKER ---
-                    # East: BUF, BOS, TBL, MTL, CAR, OTT, PIT, PHI, NYR, NYI, NJD, WSH, FLA, DET, TOR, CBJ
-                    # West: COL, LAK, DAL, MIN, VGK, UTA, EDM, ANA, VAN, WPG, NSH, STL, CAL, SEA, SJS, CHI
                     CONF_MARKER="   "
                     if [[ "$ROUND" -le 3 ]]; then
                         case "$TOP" in
@@ -268,7 +266,11 @@ playoffs() {
                         LAST_TXT="${BOT} Series Winner"; NEXT="ADVANCED"; S_TOP="${DIM}\e[9m"; S_BOT=$(nhl_team_style "$BOT")
                     else
                         S_TOP=$(nhl_team_style "$TOP"); S_BOT=$(nhl_team_style "$BOT")
-                        if [[ -z "$LAST" ]]; then
+                        # SMART STATUS: Handle Not Started vs. In Progress
+                        if [[ "$TWINS" -eq 0 && "$BWINS" -eq 0 ]]; then
+                            LAST_TXT="Not Started"
+                            NEXT="Scheduled"
+                        elif [[ -z "$LAST" ]]; then
                             [ "$TWINS" -gt "$BWINS" ] && LAST_TXT="$TOP leads $TWINS-$BWINS" || LAST_TXT="$BOT leads $BWINS-$TWINS"
                             [ "$TWINS" -eq "$BWINS" ] && LAST_TXT="Series Tied $TWINS-$BWINS"
                         else
@@ -276,11 +278,9 @@ playoffs() {
                         fi
                     fi
 
-                    # --- PRINTING WITH FIXED PADDING ---
-                    # We print the color codes outside the %-s to keep alignment perfect
+                    # --- PRINTING ---
                     printf "  %b| %b%-3s${RESET} (%d) vs %b%-3s${RESET} (%d) | " "$CONF_MARKER" "$S_TOP" "$TOP" "$TWINS" "$S_BOT" "$BOT" "$BWINS"
                     
-                    # Handle the color for "Series Winner" separately to not break printf width
                     if [[ "$NEXT" == "ADVANCED" ]]; then
                         printf "${GOLD}%-28s${RESET} | %s\n" "$LAST_TXT" "$NEXT"
                     else
@@ -292,6 +292,7 @@ playoffs() {
     done
     echo ""
 }
+
 
 nhl_team_style() {
     case $1 in
