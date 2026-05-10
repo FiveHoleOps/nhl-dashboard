@@ -217,20 +217,39 @@ playoffs() {
     GOLD="\e[38;5;214m"; BLUE="\e[38;5;33m"; RED="\e[31m"; BOLD="\e[1m"; RESET="\e[0m"; WHITE="\e[97m"; DIM="\e[2m"
     local CURRENT_YEAR=$(date +%Y)
     local RAW_DATA=$(curl -s -L -H "User-Agent: Mozilla" "https://api-web.nhle.com/v1/playoff-bracket/${CURRENT_YEAR}")
-    
+
     if ! echo "$RAW_DATA" | jq . >/dev/null 2>&1; then
         echo -e "${RED}Error: Could not parse bracket data.${RESET}"
         return
     fi
 
     echo -e "${GOLD}${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
-    echo -e "${GOLD}${BOLD}┃                            ${CURRENT_YEAR} STANLEY CUP PLAYOFF STANDINGS                           ┃${RESET}"
+    echo -e "${GOLD}${BOLD}┃                            ${CURRENT_YEAR} STANLEY CUP PLAYOFF STANDINGS                            ┃${RESET}"
     echo -e "${GOLD}${BOLD}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
 
     for ROUND in {1..4}; do
-        local CHECK=$(echo "$RAW_DATA" | jq -r ".series[] | select(.playoffRound == $ROUND and (.topSeedTeam.abbrev != null or .bottomSeedTeam.abbrev != null)) | .seriesLetter" | head -n 1)
-        
-        if [[ -n "$CHECK" ]]; then
+        # 1. Grab series where at least one team is known
+        local ROUND_DATA=$(echo "$RAW_DATA" | jq -c ".series[] | select(.playoffRound == $ROUND and (.topSeedTeam.abbrev != null or .bottomSeedTeam.abbrev != null))")
+
+        if [[ -n "$ROUND_DATA" ]]; then
+            # 2. Filtering Logic: If a team in a TBD matchup has already WON their series in this round, 
+            # it's a phantom placeholder. We skip it so it doesn't clutter the current round.
+            local CLEAN_DATA=""
+            while read -r series; do
+                TOP=$(echo "$series" | jq -r '.topSeedTeam.abbrev // "TBD"')
+                BOT=$(echo "$series" | jq -r '.bottomSeedTeam.abbrev // "TBD"')
+
+                if [[ "$TOP" == "TBD" || "$BOT" == "TBD" ]]; then
+                    KNOWN_TEAM="$TOP"; [[ "$KNOWN_TEAM" == "TBD" ]] && KNOWN_TEAM="$BOT"
+                    # Check if this team is already marked as a winner in this same round
+                    IS_WINNER=$(echo "$ROUND_DATA" | jq -r "select((.topSeedTeam.abbrev == \"$KNOWN_TEAM\" and .topSeedWins == 4) or (.bottomSeedTeam.abbrev == \"$KNOWN_TEAM\" and .bottomSeedWins == 4)) | .seriesLetter")
+                    [[ -n "$IS_WINNER" ]] && continue
+                fi
+                CLEAN_DATA+="$series\n"
+            done <<< "$ROUND_DATA"
+
+            [[ -z "$(echo -e "$CLEAN_DATA" | tr -d '[:space:]')" ]] && continue
+
             case $ROUND in
                 1) echo -e "  ${BOLD}ROUND 1${RESET}" ;;
                 2) echo -e "\n  ${BOLD}ROUND 2${RESET}" ;;
@@ -239,60 +258,54 @@ playoffs() {
             esac
             echo -e "  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-            echo "$RAW_DATA" | jq -c ".series[] | select(.playoffRound == $ROUND)" | while read -r series; do
+            echo -e "$CLEAN_DATA" | grep "{" | while read -r series; do
                 TOP=$(echo "$series" | jq -r '.topSeedTeam.abbrev // "TBD"')
                 BOT=$(echo "$series" | jq -r '.bottomSeedTeam.abbrev // "TBD"')
-                
-                if [[ "$TOP" != "TBD" || "$BOT" != "TBD" ]]; then
-                    TWINS=$(echo "$series" | jq -r '.topSeedWins // 0')
-                    BWINS=$(echo "$series" | jq -r '.bottomSeedWins // 0')
-                    
-                    # --- DYNAMIC CONFERENCE MARKER ---
-                    CONF_MARKER="   "
-                    if [[ "$ROUND" -le 3 ]]; then
-                        case "$TOP" in
-                            BUF|BOS|TBL|MTL|CAR|OTT|PIT|PHI|NYR|NYI|NJD|WSH|FLA|DET|TOR|CBJ) CONF_MARKER="${RED}E${RESET}  " ;;
-                            COL|LAK|DAL|MIN|VGK|UTA|EDM|ANA|VAN|WPG|NSH|STL|CGY|SEA|SJS|CHI) CONF_MARKER="${BLUE}W${RESET}  " ;;
-                        esac
-                    fi
+                TWINS=$(echo "$series" | jq -r '.topSeedWins // 0')
+                BWINS=$(echo "$series" | jq -r '.bottomSeedWins // 0')
 
-                    # --- STATUS LOGIC ---
-                    LAST=$(echo "$series" | jq -r '.lastGameResult // empty')
-                    NEXT="In Progress"
-                    
-                    if [[ "$TWINS" -eq 4 ]]; then 
-                        LAST_TXT="${TOP} Series Winner"; NEXT="ADVANCED"; S_BOT="${DIM}\e[9m"; S_TOP=$(nhl_team_style "$TOP")
-                    elif [[ "$BWINS" -eq 4 ]]; then 
-                        LAST_TXT="${BOT} Series Winner"; NEXT="ADVANCED"; S_TOP="${DIM}\e[9m"; S_BOT=$(nhl_team_style "$BOT")
-                    else
-                        S_TOP=$(nhl_team_style "$TOP"); S_BOT=$(nhl_team_style "$BOT")
-                        # SMART STATUS: Handle Not Started vs. In Progress
-                        if [[ "$TWINS" -eq 0 && "$BWINS" -eq 0 ]]; then
-                            LAST_TXT="Not Started"
-                            NEXT="Scheduled"
-                        elif [[ -z "$LAST" ]]; then
-                            [ "$TWINS" -gt "$BWINS" ] && LAST_TXT="$TOP leads $TWINS-$BWINS" || LAST_TXT="$BOT leads $BWINS-$TWINS"
-                            [ "$TWINS" -eq "$BWINS" ] && LAST_TXT="Series Tied $TWINS-$BWINS"
-                        else
-                            LAST_TXT="$LAST"
-                        fi
-                    fi
+                CONF_MARKER="   "
+                if [[ "$ROUND" -le 3 ]]; then
+                    local REF="$TOP"; [[ "$REF" == "TBD" ]] && REF="$BOT"
+                    case "$REF" in
+                        BUF|BOS|TBL|MTL|CAR|OTT|PIT|PHI|NYR|NYI|NJD|WSH|FLA|DET|TOR|CBJ) CONF_MARKER="${RED}E${RESET}  " ;;
+                        COL|LAK|DAL|MIN|VGK|UTA|EDM|ANA|VAN|WPG|NSH|STL|CGY|SEA|SJS|CHI) CONF_MARKER="${BLUE}W${RESET}  " ;;
+                    esac
+                fi
 
-                    # --- PRINTING ---
-                    printf "  %b| %b%-3s${RESET} (%d) vs %b%-3s${RESET} (%d) | " "$CONF_MARKER" "$S_TOP" "$TOP" "$TWINS" "$S_BOT" "$BOT" "$BWINS"
-                    
-                    if [[ "$NEXT" == "ADVANCED" ]]; then
-                        printf "${GOLD}%-28s${RESET} | %s\n" "$LAST_TXT" "$NEXT"
+                LAST=$(echo "$series" | jq -r '.lastGameResult // empty')
+                NEXT="In Progress"
+
+                if [[ "$TWINS" -eq 4 ]]; then 
+                    LAST_TXT="${TOP} Series Winner"; NEXT="ADVANCED"; S_BOT="${DIM}\e[9m"; S_TOP=$(nhl_team_style "$TOP")
+                elif [[ "$BWINS" -eq 4 ]]; then 
+                    LAST_TXT="${BOT} Series Winner"; NEXT="ADVANCED"; S_TOP="${DIM}\e[9m"; S_BOT=$(nhl_team_style "$BOT")
+                else
+                    S_TOP=$(nhl_team_style "$TOP"); S_BOT=$(nhl_team_style "$BOT")
+                    if [[ "$TOP" == "TBD" || "$BOT" == "TBD" ]]; then
+                        LAST_TXT="Matchup Pending"; NEXT="Scheduled"
+                    elif [[ "$TWINS" -eq 0 && "$BWINS" -eq 0 ]]; then
+                        LAST_TXT="Not Started"; NEXT="Scheduled"
+                    elif [[ -z "$LAST" ]]; then
+                        [ "$TWINS" -gt "$BWINS" ] && LAST_TXT="$TOP leads $TWINS-$BWINS" || LAST_TXT="$BOT leads $BWINS-$TWINS"
+                        [ "$TWINS" -eq "$BWINS" ] && LAST_TXT="Series Tied $TWINS-$BWINS"
                     else
-                        printf "%-28s | %s\n" "$LAST_TXT" "$NEXT"
+                        LAST_TXT="$LAST"
                     fi
+                fi
+
+                printf "  %b| %b%-3s${RESET} (%d) vs %b%-3s${RESET} (%d) | " "$CONF_MARKER" "$S_TOP" "$TOP" "$TWINS" "$S_BOT" "$BOT" "$BWINS"
+
+                if [[ "$NEXT" == "ADVANCED" ]]; then
+                    printf "${GOLD}%-28s${RESET} | %s\n" "$LAST_TXT" "$NEXT"
+                else
+                    printf "%-28s | %s\n" "$LAST_TXT" "$NEXT"
                 fi
             done
         fi
     done
     echo ""
 }
-
 
 nhl_team_style() {
     case $1 in
