@@ -105,12 +105,21 @@ watchscores() {
 wings() {
     local WHITE="\e[97m"; local BOLD="\e[1m"; local RESET="\e[0m"; local RED="\e[31m"
     local NOW=$(date +%Y-%m-%d)
+    local CURRENT_YEAR=$(date +%Y)
+    local CURRENT_MONTH=$(date +%m)
+
+    # Dynamically calculate the NHL season (e.g., 20252026)
+    if [ "$CURRENT_MONTH" -lt 8 ]; then
+        local SEASON="$((CURRENT_YEAR - 1))${CURRENT_YEAR}"
+    else
+        local SEASON="${CURRENT_YEAR}$((CURRENT_YEAR + 1))"
+    fi
 
     # 1. SCHEDULE
     echo -e "\e[38;2;200;16;46m${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
     echo -e "\e[38;2;200;16;46m${BOLD}┃             RED WINGS UPCOMING SCHEDULE                ┃${RESET}"
     echo -e "\e[38;2;200;16;46m${BOLD}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
-    S_DATA=$(curl -s -H "User-Agent: Mozilla" "https://api-web.nhle.com/v1/club-schedule-season/DET/20252026")
+    S_DATA=$(curl -s -H "User-Agent: Mozilla" "https://api-web.nhle.com/v1/club-schedule-season/DET/${SEASON}")
     echo "$S_DATA" | jq -r ".games[] | select(.gameDate >= \"$NOW\") | \"\(.gameDate)|\(.awayTeam.abbrev)|\(.homeTeam.abbrev)|\(.startTimeUTC)\"" | head -n 5 | while IFS='|' read -r GDATE AWAY HOME GUTC; do
         echo -e " $(date -d "$GDATE" +"%a %Y-%m-%d") | $(nhl_team_style "$AWAY") $AWAY ${RESET} @ $(nhl_team_style "$HOME") $HOME ${RESET} | ${BOLD}$(date -d "$GUTC" +"%I:%M %p")${RESET}"
     done
