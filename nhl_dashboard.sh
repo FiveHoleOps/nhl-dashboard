@@ -8,6 +8,14 @@ TOMORROW=$(date -d "tomorrow" +%Y-%m-%d)
 WHITE="\e[97m"; BOLD="\e[1m"; RESET="\e[0m"; BLUE="\e[38;5;33m"; RED="\e[31m"
 GOLD="\e[38;5;214m"; GREEN="\e[32m"; DIM="\e[2;38;5;33m"
 
+# --- DEPENDENCY CHECK ---
+for cmd in curl jq; do
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo -e "${RED}Error: Required command '$cmd' is not installed.${RESET}" >&2
+        exit 1
+    fi
+done
+
 scores() {
     local MODE=$1 # Can be "today_only" or empty
     local WHITE="\e[97m"; local BOLD="\e[1m"; local RESET="\e[0m";
