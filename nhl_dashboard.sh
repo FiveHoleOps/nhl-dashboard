@@ -16,14 +16,17 @@ for cmd in curl jq; do
     fi
 done
 
+# --- API HELPER ---
+fetch_data() {
+    curl -s -L -H "User-Agent: Mozilla/5.0" "$1"
+}
+
 scores() {
     local MODE=$1 # Can be "today_only" or empty
-    local WHITE="\e[97m"; local BOLD="\e[1m"; local RESET="\e[0m";
-    local GREEN="\e[32m"; local RED="\e[31m"; local GOLD="\e[38;5;214m"
 
     # --- YESTERDAY'S FINALS (Skip if watchscores) ---
     if [[ "$MODE" != "today_only" ]]; then
-        local Y_DATA=$(curl -s -H "User-Agent: Mozilla" "https://api-web.nhle.com/v1/score/$YESTERDAY")
+        local Y_DATA=$(fetch_data "https://api-web.nhle.com/v1/score/$YESTERDAY")
         echo -e "\e[38;5;214m${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
         echo -e "\e[38;5;214m${BOLD}┃             YESTERDAY'S FINALS ($YESTERDAY)             ┃${RESET}"
         echo -e "\e[38;5;214m${BOLD}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
@@ -40,7 +43,7 @@ scores() {
     fi
 
     # --- DAILY SCOREBOARD SECTION ---
-    local T_DATA=$(curl -s -H "User-Agent: Mozilla" "https://api-web.nhle.com/v1/score/$TODAY")
+    local T_DATA=$(fetch_data "https://api-web.nhle.com/v1/score/$TODAY")
     echo -e "${WHITE}${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
     echo -e "${WHITE}${BOLD}┃           NHL DAILY SCOREBOARD ($TODAY)            ┃${RESET}"
     echo -e "${WHITE}${BOLD}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
@@ -75,7 +78,7 @@ scores() {
 
     # --- TOMORROW'S SCHEDULE (Skip if watchscores) ---
     if [[ "$MODE" != "today_only" ]]; then
-        local TOM_DATA=$(curl -s -H "User-Agent: Mozilla" "https://api-web.nhle.com/v1/score/$TOMORROW")
+        local TOM_DATA=$(fetch_data "https://api-web.nhle.com/v1/score/$TOMORROW")
         echo -e "\n\e[38;5;33m${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
         echo -e "\e[38;5;33m${BOLD}┃            TOMORROW'S SCHEDULE ($TOMORROW)            ┃${RESET}"
         echo -e "\e[38;5;33m${BOLD}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
@@ -103,7 +106,6 @@ watchscores() {
 }
 
 wings() {
-    local WHITE="\e[97m"; local BOLD="\e[1m"; local RESET="\e[0m"; local RED="\e[31m"
     local NOW=$(date +%Y-%m-%d)
     local CURRENT_YEAR=$(date +%Y)
     local CURRENT_MONTH=$(date +%m)
@@ -119,13 +121,13 @@ wings() {
     echo -e "\e[38;2;200;16;46m${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
     echo -e "\e[38;2;200;16;46m${BOLD}┃             RED WINGS UPCOMING SCHEDULE                ┃${RESET}"
     echo -e "\e[38;2;200;16;46m${BOLD}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
-    S_DATA=$(curl -s -H "User-Agent: Mozilla" "https://api-web.nhle.com/v1/club-schedule-season/DET/${SEASON}")
+    S_DATA=$(fetch_data "https://api-web.nhle.com/v1/club-schedule-season/DET/${SEASON}")
     echo "$S_DATA" | jq -r ".games[] | select(.gameDate >= \"$NOW\") | \"\(.gameDate)|\(.awayTeam.abbrev)|\(.homeTeam.abbrev)|\(.startTimeUTC)\"" | head -n 5 | while IFS='|' read -r GDATE AWAY HOME GUTC; do
         echo -e " $(date -d "$GDATE" +"%a %Y-%m-%d") | $(nhl_team_style "$AWAY") $AWAY ${RESET} @ $(nhl_team_style "$HOME") $HOME ${RESET} | ${BOLD}$(date -d "$GUTC" +"%I:%M %p")${RESET}"
     done
 
     # Progress Check
-    STANDINGS=$(curl -s -H "User-Agent: Mozilla/5.0" "https://api-web.nhle.com/v1/standings/$TODAY")
+    STANDINGS=$(fetch_data "https://api-web.nhle.com/v1/standings/$TODAY")
     DET_STATS=$(echo "$STANDINGS" | jq -r '.standings[] | select(.teamAbbrev.default=="DET") | "\(.gamesPlayed)|\(.points)"')
 
     if [[ -n "$DET_STATS" ]]; then
@@ -144,7 +146,7 @@ wings() {
     echo -e "\n\e[38;2;200;16;46m${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
     echo -e "\e[38;2;200;16;46m${BOLD}┃                WINGING IT IN MOTOWN NEWS               ┃${RESET}"
     echo -e "\e[38;2;200;16;46m${BOLD}┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
-    FEED=$(curl -s -L -H "User-Agent: Mozilla" "https://www.wingingitinmotown.com/feed")
+    FEED=$(fetch_data "https://www.wingingitinmotown.com/feed")
     TITLES=$(echo "$FEED" | grep -oP '(?<=<title>).*?(?=</title>)' | sed '1,2d' | head -n 5)
     LINKS=$(echo "$FEED" | grep -oP '(?<=<link>).*?(?=</link>)' | sed '1,2d' | head -n 5)
     while IFS= read -r title <&3 && IFS= read -r link <&4; do
@@ -158,7 +160,7 @@ nhlnews(){
     echo -e "\n\e[38;5;45m${BOLD}┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓${RESET}"
     echo -e "${BOLD}\e[38;5;45m┃                LATEST PRO HOCKEY NEWS                  ┃${RESET}"
     echo -e "\e[38;5;45m┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛${RESET}"
-    FEED=$(curl -s -H "User-Agent: Mozilla/5.0" "https://prohockeynews.com/feed/")
+    FEED=$(fetch_data "https://prohockeynews.com/feed/")
     TITLES=$(echo "$FEED" | grep -oP '(?<=<title>).*?(?=</title>)' | sed '1,2d' | head -n 8)
     LINKS=$(echo "$FEED" | grep -oP '(?<=<link>).*?(?=</link>)' | sed '1,2d' | head -n 8)
 
@@ -174,8 +176,7 @@ nhlnews(){
 
 bracket() {
     # --- SETUP ---
-    GOLD="\e[38;5;214m"; BLUE="\e[38;5;33m"; RED="\e[31m"; BOLD="\e[1m"; RESET="\e[0m"; WHITE="\e[97m"; DIM="\e[2m"
-    DATA=$(curl -s -L -H "User-Agent: Mozilla" "https://api-web.nhle.com/v1/standings/now")
+    DATA=$(fetch_data "https://api-web.nhle.com/v1/standings/now")
 
     # ALIGNMENT HELPER
     v_pad() {
@@ -231,9 +232,9 @@ bracket() {
 
 playoffs() {
     # --- SETUP ---
-    GOLD="\e[38;5;214m"; BLUE="\e[38;5;33m"; RED="\e[31m"; BOLD="\e[1m"; RESET="\e[0m"; WHITE="\e[97m"; DIM="\e[2m"
+    local DIM="\e[2m"
     local CURRENT_YEAR=$(date +%Y)
-    local RAW_DATA=$(curl -s -L -H "User-Agent: Mozilla" "https://api-web.nhle.com/v1/playoff-bracket/${CURRENT_YEAR}")
+    local RAW_DATA=$(fetch_data "https://api-web.nhle.com/v1/playoff-bracket/${CURRENT_YEAR}")
 
     if ! echo "$RAW_DATA" | jq . >/dev/null 2>&1; then
         echo -e "${RED}Error: Could not parse bracket data.${RESET}"
